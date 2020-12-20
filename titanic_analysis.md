@@ -1,18 +1,18 @@
----
-title: "Titanic Exploratory Analysis"
-author: Brian Moore
-output: rmarkdown::github_document
----
+Titanic Exploratory Analysis
+================
+Brian Moore
 
 # Amalysis Scenario
-- Let's assumes we're responsible for supporting the Titanic disaster investigation using data insights.
-- In this exploratory report we'll use data analysis and modeling techniques to see if certain factors might have correlated with passengers being more likely to perish.
 
-```{r echo=FALSE, include = FALSE}
-knitr::opts_chunk$set(echo=TRUE, warning=FALSE, message=FALSE)
-```
+  - Let’s assumes we’re responsible for supporting the Titanic disaster
+    investigation using data insights.
+  - In this exploratory report we’ll use data analysis and modeling
+    techniques to see if certain factors might have correlated with
+    passengers being more likely to perish.
 
-```{r}
+<!-- end list -->
+
+``` r
 options(scipen=999)
 
 # warning: running this will install packages on your machine if they aren't present
@@ -24,8 +24,10 @@ for(p in required_packages) {
 }
 pct_formater_1 <- scales::label_percent(accuracy = 1)
 ```
+
 ### Access the Titanic data
-```{r}
+
+``` r
 ### read in the titanic dataset from URL location 
 ### if this code doesn't work. check to see if data URL location changed
 url <- c("https://biostat.app.vumc.org/wiki/pub/Main/DataSets/titanic3.csv")
@@ -38,7 +40,8 @@ df_raw <- df_raw %>% dplyr::select(-boat, - body)
 ```
 
 ### Check for missing data
-```{r}
+
+``` r
 df_raw %>% 
   map_df(~sum(is.na(.))) %>%
   gather(key="variable", value="NA_count") %>%
@@ -47,11 +50,24 @@ df_raw %>%
   arrange(desc(percent_total_rows_NA))
 ```
 
+    ## # A tibble: 5 x 3
+    ##   variable  NA_count percent_total_rows_NA
+    ##   <chr>        <int> <chr>                
+    ## 1 cabin         1014 77%                  
+    ## 2 home.dest      564 43%                  
+    ## 3 age            263 20%                  
+    ## 4 fare             1 0%                   
+    ## 5 embarked         2 0%
+
 ### Handling NAs
-- When Cabin or home.dest is NA then replace with missing.
-- When fare missing then replace with median for now.
-- Replace embarked NA with most common embarked location.
-```{r}
+
+  - When Cabin or home.dest is NA then replace with missing.
+  - When fare missing then replace with median for now.
+  - Replace embarked NA with most common embarked location.
+
+<!-- end list -->
+
+``` r
 df <- df_raw %>%
   mutate_at(c("cabin", "home.dest"), replace_na, "missing") %>%
   mutate_at(c("embarked"), replace_na, "S") %>%
@@ -67,10 +83,16 @@ df <- df_raw %>%
 ```
 
 ### Adding derived new features
-- Add a column for cabin deck (m will be returned for observations where cabin in missing).
-- Hypothesis: iceberg crash occurred late at night. Decks closer to lifeboats could have better chance for survival?
-- Use passenger name to derive new name features surname and title.
-```{r}
+
+  - Add a column for cabin deck (m will be returned for observations
+    where cabin in missing).
+  - Hypothesis: iceberg crash occurred late at night. Decks closer to
+    lifeboats could have better chance for survival?
+  - Use passenger name to derive new name features surname and title.
+
+<!-- end list -->
+
+``` r
 df <- df %>%
   rowwise() %>% 
   mutate(cabin_deck = str_extract(cabin, "^.{1}"),
@@ -81,24 +103,35 @@ df <- df %>%
   ungroup()
 ```
 
-- Surname count: could potentially help capture signal for families.
-```{r}
+  - Surname count: could potentially help capture signal for families.
+
+<!-- end list -->
+
+``` r
 df <- df %>%
   group_by(surname) %>%
   mutate(surname_count = n()) %>%
   ungroup()
 ```
 
-- Create new ticket feature to see if there's some signal in the ticket variable. 
-- This might result in a random feature or could contribute to overfitting.
-```{r}
+  - Create new ticket feature to see if there’s some signal in the
+    ticket variable.
+  - This might result in a random feature or could contribute to
+    overfitting.
+
+<!-- end list -->
+
+``` r
 df <- df %>%
   mutate(ticket_prefix_1 = substring(ticket, 1, 1),
          ticket_prefix_2 = substring(ticket, 1, 2))
 ```
 
-- Predict age when missing and add in age bucket (for visualizations).
-```{r}
+  - Predict age when missing and add in age bucket (for visualizations).
+
+<!-- end list -->
+
+``` r
 # add observation id
 df <- df %>% mutate(id = row_number())
 
@@ -140,10 +173,12 @@ df <- df %>%
 ```
 
 ### Exploratory Analysis
-- Top visualizations from EDA iterations.
+
+  - Top visualizations from EDA iterations.
 
 Sex, age, pclass
-```{r}
+
+``` r
 df %>%
   group_by(sex, age_bucket, pclass) %>%
   summarise(passenger_count = n(),
@@ -167,8 +202,11 @@ it seems there might have been passenger class bias as well.",
        x="Age Group")
 ```
 
+![](titanic_analysis_files/figure-gfm/unnamed-chunk-10-1.png)<!-- -->
+
 Pclass, age, fare
-```{r}
+
+``` r
 df %>%
   group_by(pclass, age_bucket, fare_bucket = cut2(fare, g=4)) %>%
   summarise(passenger_count = n(),
@@ -189,12 +227,19 @@ Per tile: survival rate (top), passenger count (bottom)",
        x="Fare Group")
 ```
 
-### Prep Data for Modeling  
-- Using cross validation to estimate test error.
-- Not using separate test set as it reduces the training data size.
-- For this analysis we're looking to surface trends in the passenger data vs making future predictions (hence why we use the full dataset for training).
+![](titanic_analysis_files/figure-gfm/unnamed-chunk-11-1.png)<!-- -->
 
-```{r}
+### Prep Data for Modeling
+
+  - Using cross validation to estimate test error.
+  - Not using separate test set as it reduces the training data size.
+  - For this analysis we’re looking to surface trends in the passenger
+    data vs making future predictions (hence why we use the full dataset
+    for training).
+
+<!-- end list -->
+
+``` r
 # drop variables that would need further transformation before being useful to the model
 df_final <- df %>%
   ### model binary factor var
@@ -212,15 +257,25 @@ df_final  <- df_final[, -nearZeroVar(df_final)]
 ```
 
 ### Modeling
-- 5 fold cross validation to assess model accuracy vs null model.
-- Use the same seed before each model run so the model trains on same folds for each model.
-```{r}
+
+  - 5 fold cross validation to assess model accuracy vs null model.
+  - Use the same seed before each model run so the model trains on same
+    folds for each model.
+
+<!-- end list -->
+
+``` r
 ctrl <- trainControl(method = "cv", number = 5)
 ```
 
 #### Baseline model
-- Create a baseline model that only uses the sex variable to predict survival.
-```{r}
+
+  - Create a baseline model that only uses the sex variable to predict
+    survival.
+
+<!-- end list -->
+
+``` r
 # ~78% training data accuracy predicting all females survive
 set.seed(123)
 baseline_mod <- train(survived_fct ~ .,
@@ -232,8 +287,25 @@ baseline_mod <- train(survived_fct ~ .,
 baseline_mod
 ```
 
+    ## CART 
+    ## 
+    ## 1309 samples
+    ##    1 predictor
+    ##    2 classes: '0', '1' 
+    ## 
+    ## No pre-processing
+    ## Resampling: Cross-Validated (5 fold) 
+    ## Summary of sample sizes: 1048, 1047, 1047, 1047, 1047 
+    ## Resampling results:
+    ## 
+    ##   Accuracy   Kappa    
+    ##   0.7800006  0.5276824
+    ## 
+    ## Tuning parameter 'cp' was held constant at a value of 0.1
+
 #### Logistic Regression
-```{r}
+
+``` r
 set.seed(123)
 logistic_reg_mod <- train(survived_fct ~ .,
                           data=df_final,
@@ -247,11 +319,16 @@ logistic_reg_mod <- train(survived_fct ~ .,
 ```
 
 #### Lasso Logistic Regression
-- Ridge regression (or alpha = 0).
-- Lasso regression (or alpha = 1).
-- Lambda: the strength of the penalty on the coefficients. Larger the lambda value the more freedom to shrink coefficients towards zero which could end up resulting in an intercept only model.
 
-```{r}
+  - Ridge regression (or alpha = 0).
+  - Lasso regression (or alpha = 1).
+  - Lambda: the strength of the penalty on the coefficients. Larger the
+    lambda value the more freedom to shrink coefficients towards zero
+    which could end up resulting in an intercept only model.
+
+<!-- end list -->
+
+``` r
 set.seed(123)
 lasso_logistic_reg_mod <- train(survived_fct ~ .,
                     data=df_final,
@@ -263,7 +340,8 @@ lasso_logistic_reg_mod <- train(survived_fct ~ .,
 ```
 
 #### Ridge Logistic Regression
-```{r}
+
+``` r
 set.seed(123)
 ridge_logistic_reg_mod <- train(survived_fct ~ .,
                     data=df_final,
@@ -275,8 +353,12 @@ ridge_logistic_reg_mod <- train(survived_fct ~ .,
 ```
 
 #### Elastic Net Logistic Regression
-- Mix of Lasso and Ridge Logistic Regression.
-```{r}
+
+  - Mix of Lasso and Ridge Logistic Regression.
+
+<!-- end list -->
+
+``` r
 set.seed(123)
 glmnet_mod <- train(survived_fct ~ .,
                     data=df_final,
@@ -287,8 +369,9 @@ glmnet_mod <- train(survived_fct ~ .,
                     trControl = ctrl)
 ```
 
-#### LDA 
-```{r}
+#### LDA
+
+``` r
 set.seed(123)
 lda_mod <- train(survived_fct ~ .,
                    data=df_final,
@@ -298,7 +381,8 @@ lda_mod <- train(survived_fct ~ .,
 ```
 
 #### KNN
-```{r}
+
+``` r
 set.seed(123)
 knn_mod <- train(survived_fct ~ .,
                  data=df_final, 
@@ -309,7 +393,8 @@ knn_mod <- train(survived_fct ~ .,
 ```
 
 #### Basic rpart model
-```{r}
+
+``` r
 set.seed(123)
 rpart_mod <- train(survived_fct ~ .,
                    data=df_final,
@@ -323,7 +408,8 @@ rpart_mod <- train(survived_fct ~ .,
 ```
 
 #### Ctree
-```{r}
+
+``` r
 set.seed(123)
 ctree_mod <- train(survived_fct ~ .,
                     data=df_final,
@@ -336,7 +422,8 @@ ctree_mod <- train(survived_fct ~ .,
 ```
 
 #### Random Forest
-```{r}
+
+``` r
 rf_grid <- tgrid <- expand.grid(
                       mtry = seq(5, 15, by=2),
                       splitrule = "gini",
@@ -351,7 +438,8 @@ rf_mod <- train(survived_fct ~ .,
 ```
 
 #### XGB
-```{r}
+
+``` r
 grid_default <- expand.grid(
   nrounds = c(50, 100, 150),
   max_depth = c(1, 3, 6),
@@ -371,13 +459,17 @@ xgb_mod <- train(survived_fct ~ .,
 ```
 
 ### Compare models
-- Most of the models trend slightly above the baseline simple model. 
-- We'll select the Random Forest model as the final model for this 
-analysis (RF has the highest average accuracy across the folds). 
-- Other models could be selected as there looks to be similar performance. 
-- KNN looks to have the worst performance on the resampling data. 
 
-```{r}
+  - Most of the models trend slightly above the baseline simple model.
+  - We’ll select the Random Forest model as the final model for this
+    analysis (RF has the highest average accuracy across the folds).
+  - Other models could be selected as there looks to be similar
+    performance.
+  - KNN looks to have the worst performance on the resampling data.
+
+<!-- end list -->
+
+``` r
 # collect resample results (results for the 5 folds)
 results <- resamples(list(baseline_rpart = baseline_mod,
                           logistic_reg=logistic_reg_mod,
@@ -412,16 +504,37 @@ accuracy_df %>%
        x="Model Label")
 ```
 
+![](titanic_analysis_files/figure-gfm/unnamed-chunk-25-1.png)<!-- -->
+
 ### Compare selected model vs baseline
-- Compare the results of the baseline model vs random forest.
-- RF has CV 5 fold accuracy results that are better than baseline and statistically significant.
-- This conclusion ties with the boxplots above (much of the RF distribution doesn't overlap with the baseline model).
-```{r}
+
+  - Compare the results of the baseline model vs random forest.
+  - RF has CV 5 fold accuracy results that are better than baseline and
+    statistically significant.
+  - This conclusion ties with the boxplots above (much of the RF
+    distribution doesn’t overlap with the baseline model).
+
+<!-- end list -->
+
+``` r
 compare_models(rf_mod, baseline_mod)
 ```
 
+    ## 
+    ##  One Sample t-test
+    ## 
+    ## data:  x
+    ## t = 4.1784, df = 4, p-value = 0.01394
+    ## alternative hypothesis: true mean is not equal to 0
+    ## 95 percent confidence interval:
+    ##  0.01230903 0.06106115
+    ## sample estimates:
+    ##  mean of x 
+    ## 0.03668509
+
 ### Train model on full training dataset
-```{r}
+
+``` r
 # update levels so ranger uses survived 1 as positive class
 df_final <- df_final %>% mutate(survived_fct = factor(survived_fct, levels=c("1","0")))
 
@@ -437,11 +550,32 @@ final_rf_mod <- ranger(survived_fct ~ .,
 final_rf_mod
 ```
 
-### Investigate feature importance
-- Using the permutation method which shuffles a features values then checks error increases.
-- Features that result in higher error after being shuffled are features that score higher on the importance rank (e.g. these features are more importance to reducing model error).
+    ## Ranger result
+    ## 
+    ## Call:
+    ##  ranger(survived_fct ~ ., data = df_final, num.trees = rf_mod$finalModel$num.trees,      min.node.size = rf_mod$finalModel$min.node.size, mtry = rf_mod$finalModel$mtry,      respect.unordered.factors = TRUE, splitrule = "gini", importance = "permutation",      probability = TRUE) 
+    ## 
+    ## Type:                             Probability estimation 
+    ## Number of trees:                  500 
+    ## Sample size:                      1309 
+    ## Number of independent variables:  13 
+    ## Mtry:                             11 
+    ## Target node size:                 15 
+    ## Variable importance mode:         permutation 
+    ## Splitrule:                        gini 
+    ## OOB prediction error (Brier s.):  0.1339837
 
-```{r}
+### Investigate feature importance
+
+  - Using the permutation method which shuffles a features values then
+    checks error increases.
+  - Features that result in higher error after being shuffled are
+    features that score higher on the importance rank (e.g. these
+    features are more importance to reducing model error).
+
+<!-- end list -->
+
+``` r
 data.frame(score = final_rf_mod$variable.importance) %>%
   rownames_to_column(var="feature") %>%
   mutate(feature = fct_reorder(factor(feature), score, max)) %>%
@@ -457,14 +591,23 @@ data.frame(score = final_rf_mod$variable.importance) %>%
        x="Importance Score")
 ```
 
-### Partial Dependence Plots 
-- We can use partial dependence plots to gain intuition on the direction of the top features.
-- PDPs: visualize the marginal effect of a given feature on the outcome variable for different values of the feature.
-- Individual Conditional Expectation plots can also be used to see how predictions change at the observation level when a feature value changes.
+![](titanic_analysis_files/figure-gfm/unnamed-chunk-28-1.png)<!-- -->
 
-Overall, the final model predicts that survival is most likely for passengers  
-with 'Mrs' title and survival is likely for 'Mr' titles.
-```{r}
+### Partial Dependence Plots
+
+  - We can use partial dependence plots to gain intuition on the
+    direction of the top features.
+  - PDPs: visualize the marginal effect of a given feature on the
+    outcome variable for different values of the feature.
+  - Individual Conditional Expectation plots can also be used to see how
+    predictions change at the observation level when a feature value
+    changes.
+
+Overall, the final model predicts that survival is most likely for
+passengers  
+with ‘Mrs’ title and survival is likely for ‘Mr’ titles.
+
+``` r
 partial(final_rf_mod, 
         pred.var = c("title"), 
         trim.outliers = TRUE,
@@ -474,9 +617,12 @@ partial(final_rf_mod,
   labs(title="Partial Dependence Plot: Title and Survival")
 ```
 
-Overall, final model predicts that survival is more likely for   
+![](titanic_analysis_files/figure-gfm/unnamed-chunk-29-1.png)<!-- -->
+
+Overall, final model predicts that survival is more likely for  
 older passengers in first or second class vs third class.
-```{r}
+
+``` r
 partial(final_rf_mod, 
         pred.var = c("fare", "pclass"), 
         trim.outliers = TRUE,
@@ -486,17 +632,31 @@ partial(final_rf_mod,
   labs(title="Partial Dependence Plot: Fare | Pclass and Survival")
 ```
 
+![](titanic_analysis_files/figure-gfm/unnamed-chunk-30-1.png)<!-- -->
+
 ### Conclusions
-- For this analysis, exploratory analysis visualizations seemed more valuable than modeling. Given the relatively small feature set, visualizations can be used to investigate combinations of features and the relationship with survival.
-- Robust models only performed slightly better than a simple prediction (i.e. predict all females survived).
-- Based on the Titanic literature, it seems women and children were given priority to life boats first (this trend is present in the data). Additionally, there looks to have been a class bias. 
-- Potentially passengers who were in higher social class groups were given priority in line for life boats or closer to the life boats.
-- This sort of analysis could be used to inform the types of interview questions investigators ask survivors.
+
+  - For this analysis, exploratory analysis visualizations seemed more
+    valuable than modeling. Given the relatively small feature set,
+    visualizations can be used to investigate combinations of features
+    and the relationship with survival.
+  - Robust models only performed slightly better than a simple
+    prediction (i.e. predict all females survived).
+  - Based on the Titanic literature, it seems women and children were
+    given priority to life boats first (this trend is present in the
+    data). Additionally, there looks to have been a class bias.
+  - Potentially passengers who were in higher social class groups were
+    given priority in line for life boats or closer to the life boats.
+  - This sort of analysis could be used to inform the types of interview
+    questions investigators ask survivors.
 
 ### Future work areas
-- Additional feature engineering and model tuning.
-- Include individual conditional expectation plots in addition to PDP plots.
-- Investigate how to reduce multicollinearity for logistic regression approaches (then use for inference).
-- More in depth write up could be included in the report.
-- We could run statistical tests to make stronger claims between the  
-differences of passengers that survived vs perished.
+
+  - Additional feature engineering and model tuning.
+  - Include individual conditional expectation plots in addition to PDP
+    plots.
+  - Investigate how to reduce multicollinearity for logistic regression
+    approaches (then use for inference).
+  - More in depth write up could be included in the report.
+  - We could run statistical tests to make stronger claims between the  
+    differences of passengers that survived vs perished.
