@@ -4,7 +4,7 @@ author: Brian Moore
 output: rmarkdown::github_document
 ---
 
-# Amalysis Scenario
+# Analysis Scenario
 - Let's assumes we're responsible for supporting the Titanic disaster investigation using data insights.
 - In this exploratory report we'll use data analysis and modeling techniques to see if certain factors might have correlated with passengers being more likely to perish.
 
